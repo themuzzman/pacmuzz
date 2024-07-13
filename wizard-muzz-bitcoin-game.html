@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAC MUZZ Bitcoin Collector</title>
+    <style>
+        body { background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Courier New', monospace; }
+        #gameContainer { display: flex; align-items: center; }
+        #gameCanvas { border: 4px solid #1E90FF; box-shadow: 0 0 20px #1E90FF; }
+        #sidePanel { width: 400px; margin-right: 20px; color: #FFF; display: flex; flex-direction: column; justify-content: space-between; height: 684px; }
+        #scoreBoard { font-size: 24px; text-align: right; margin-bottom: 20px; }
+        #titleArt { font-size: 10px; line-height: 1; white-space: pre; text-align: left; color: #1E90FF; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="sidePanel">
+            <div id="scoreBoard">SCORE: 0</div>
+            <div id="titleArt">
+ _______    ______    ______   
+/       \  /      \  /      \  
+$$$$$$$  |/$$$$$$  |/$$$$$$  | 
+$$ |__$$ |$$ |__$$ |$$ |  $$/ 
+$$    $$/ $$    $$ |$$ |      
+$$$$$$$/  $$$$$$$$ |$$ |   __ 
+$$ |      $$ |  $$ |$$ \__/  |
+$$ |      $$ |  $$ |$$    $$/ 
+$$/       $$/   $$/  $$$$$$/  
+ 
+ __       __  __    __  ________  ________ 
+/  \     /  |/  |  /  |/        |/        |
+$$  \   /$$ |$$ |  $$ |$$$$$$$$/ $$$$$$$$/ 
+$$$  \ /$$$ |$$ |  $$ |    /$$/      /$$/  
+$$$$  /$$$$ |$$ |  $$ |   /$$/      /$$/   
+$$ $$ $$/$$ |$$ |  $$ |  /$$/      /$$/    
+$$ |$$$/ $$ |$$ \__$$ | /$$/____  /$$/____ 
+$$ | $/  $$ |$$    $$/ /$$      |/$$      |
+$$/      $$/  $$$$$$/  $$$$$$$$/ $$$$$$$$/ 
+            </div>
+            <div></div> <!-- Empty div for spacing -->
+        </div>
+        <canvas id="gameCanvas" width="684" height="684"></canvas>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreBoard = document.getElementById('scoreBoard');
+
+        // Game variables
+        const GAME_SIZE = 684;
+        const PLAYER_SIZE = 40;
+        const GHOST_SIZE = 25;
+        const COIN_SIZE = 18;
+        const PLAYER_SPEED = 2;
+        const GHOST_SPEED = 1.5;
+        const TOTAL_COINS = 18;
+        const GRID_SIZE = 36;
+
+        let wizardMuzz = { x: GAME_SIZE / 2, y: GAME_SIZE / 2, direction: 0 };
+        let ghosts = [];
+        let coins = [];
+        let gameOver = false;
+        let score = 0;
+
+        // Ghost colors
+        const ghostColors = ['#FF0000', '#00FFFF', '#FFA500', '#FFC0CB', '#00FF00'];
+
+        // Initialize game
+        function initGame() {
+            // Create ghosts
+            for (let i = 0; i < 5; i++) {
+                ghosts.push({
+                    x: Math.floor(Math.random() * (GAME_SIZE / GRID_SIZE)) * GRID_SIZE + GRID_SIZE / 2,
+                    y: Math.floor(Math.random() * (GAME_SIZE / GRID_SIZE)) * GRID_SIZE + GRID_SIZE / 2,
+                    direction: Math.floor(Math.random() * 4),
+                    color: ghostColors[i]
+                });
+            }
+
+            // Create coins
+            let positions = [];
+            for (let x = GRID_SIZE / 2; x < GAME_SIZE; x += GRID_SIZE) {
+                for (let y = GRID_SIZE / 2; y < GAME_SIZE; y += GRID_SIZE) {
+                    positions.push({x, y});
+                }
+            }
+            for (let i = 0; i < TOTAL_COINS; i++) {
+                let index = Math.floor(Math.random() * positions.length);
+                coins.push(positions.splice(index, 1)[0]);
+            }
+        }
+
+        function drawWizardMuzz() {
+            // Draw wizard hat
+            ctx.fillStyle = '#4B0082';
+            ctx.beginPath();
+            ctx.moveTo(wizardMuzz.x, wizardMuzz.y - PLAYER_SIZE/2);
+            ctx.lineTo(wizardMuzz.x - PLAYER_SIZE/2, wizardMuzz.y);
+            ctx.lineTo(wizardMuzz.x + PLAYER_SIZE/2, wizardMuzz.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw hat brim
+            ctx.fillStyle = '#9400D3';
+            ctx.fillRect(wizardMuzz.x - PLAYER_SIZE/2, wizardMuzz.y, PLAYER_SIZE, PLAYER_SIZE/10);
+
+            // Draw face
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(wizardMuzz.x - PLAYER_SIZE/3, wizardMuzz.y + PLAYER_SIZE/10, PLAYER_SIZE*2/3, PLAYER_SIZE/2);
+
+            // Draw eyes
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(wizardMuzz.x - PLAYER_SIZE/5, wizardMuzz.y + PLAYER_SIZE/4, PLAYER_SIZE/10, PLAYER_SIZE/10);
+            ctx.fillRect(wizardMuzz.x + PLAYER_SIZE/10, wizardMuzz.y + PLAYER_SIZE/4, PLAYER_SIZE/10, PLAYER_SIZE/10);
+
+            // Draw beard
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.moveTo(wizardMuzz.x - PLAYER_SIZE/3, wizardMuzz.y + PLAYER_SIZE*3/5);
+            ctx.lineTo(wizardMuzz.x, wizardMuzz.y + PLAYER_SIZE/2);
+            ctx.lineTo(wizardMuzz.x + PLAYER_SIZE/3, wizardMuzz.y + PLAYER_SIZE*3/5);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawGhosts() {
+            ghosts.forEach(ghost => {
+                ctx.beginPath();
+                ctx.arc(ghost.x, ghost.y, GHOST_SIZE / 2, Math.PI, 2 * Math.PI);
+                ctx.lineTo(ghost.x + GHOST_SIZE / 2, ghost.y + GHOST_SIZE / 2);
+                for(let i = 0; i < 3; i++) {
+                    ctx.lineTo(ghost.x + GHOST_SIZE / 2 - (GHOST_SIZE / 3) * (i + 1), ghost.y + GHOST_SIZE / 4);
+                    ctx.lineTo(ghost.x + GHOST_SIZE / 2 - (GHOST_SIZE / 3) * (i + 0.5), ghost.y + GHOST_SIZE / 2);
+                }
+                ctx.lineTo(ghost.x - GHOST_SIZE / 2, ghost.y + GHOST_SIZE / 2);
+                ctx.fillStyle = ghost.color;
+                ctx.fill();
+                ctx.closePath();
+
+                // Draw eyes
+                ctx.beginPath();
+                ctx.arc(ghost.x - 5, ghost.y - 5, 4, 0, 2 * Math.PI);
+                ctx.arc(ghost.x + 5, ghost.y - 5, 4, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FFF';
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.beginPath();
+                ctx.arc(ghost.x - 5, ghost.y - 5, 2, 0, 2 * Math.PI);
+                ctx.arc(ghost.x + 5, ghost.y - 5, 2, 0, 2 * Math.PI);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        function drawCoins() {
+            coins.forEach(coin => {
+                ctx.beginPath();
+                ctx.arc(coin.x, coin.y, COIN_SIZE / 2, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FFD700';
+                ctx.fill();
+                ctx.strokeStyle = '#DAA520';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.closePath();
+
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('₿', coin.x, coin.y);
+            });
+        }
+
+        function updateScore() {
+            scoreBoard.textContent = `SCORE: ${score}`;
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#1E90FF';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < GAME_SIZE; i += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, GAME_SIZE);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(GAME_SIZE, i);
+                ctx.stroke();
+            }
+        }
+
+        function update() {
+            if (gameOver) return;
+
+            // Move Wizard MUZZ
+            if (wizardMuzz.direction === 0) wizardMuzz.x += PLAYER_SPEED;
+            if (wizardMuzz.direction === 1) wizardMuzz.y -= PLAYER_SPEED;
+            if (wizardMuzz.direction === 2) wizardMuzz.x -= PLAYER_SPEED;
+            if (wizardMuzz.direction === 3) wizardMuzz.y += PLAYER_SPEED;
+
+            // Keep Wizard MUZZ within bounds
+            wizardMuzz.x = Math.max(PLAYER_SIZE / 2, Math.min(wizardMuzz.x, GAME_SIZE - PLAYER_SIZE / 2));
+            wizardMuzz.y = Math.max(PLAYER_SIZE / 2, Math.min(wizardMuzz.y, GAME_SIZE - PLAYER_SIZE / 2));
+
+            // Move ghosts
+            ghosts.forEach(ghost => {
+                let newX = ghost.x;
+                let newY = ghost.y;
+
+                if (ghost.direction === 0) newX += GHOST_SPEED;
+                if (ghost.direction === 1) newY -= GHOST_SPEED;
+                if (ghost.direction === 2) newX -= GHOST_SPEED;
+                if (ghost.direction === 3) newY += GHOST_SPEED;
+
+                // Check if the ghost hits a wall
+                if (newX <= GHOST_SIZE / 2 || newX >= GAME_SIZE - GHOST_SIZE / 2 || 
+                    newY <= GHOST_SIZE / 2 || newY >= GAME_SIZE - GHOST_SIZE / 2) {
+                    // Reverse direction
+                    ghost.direction = (ghost.direction + 2) % 4;
+                    // Move in the new direction
+                    if (ghost.direction === 0) newX = ghost.x + GHOST_SPEED;
+                    if (ghost.direction === 1) newY = ghost.y - GHOST_SPEED;
+                    if (ghost.direction === 2) newX = ghost.x - GHOST_SPEED;
+                    if (ghost.direction === 3) newY = ghost.y + GHOST_SPEED;
+                }
+
+                ghost.x = newX;
+                ghost.y = newY;
+
+                // Randomly change direction
+                if (Math.random() < 0.02) {
+                    ghost.direction = Math.floor(Math.random() * 4);
+                }
+            });
+
+            // Check for coin collection
+            coins = coins.filter(coin => {
+                const dx = wizardMuzz.x - coin.x;
+                const dy = wizardMuzz.y - coin.y;
+                if (Math.sqrt(dx * dx + dy * dy) <= (PLAYER_SIZE / 2 + COIN_SIZE / 2)) {
+                    score += 10;
+                    updateScore();
+                    return false;
+                }
+                return true;
+            });
+
+            // Check win condition
+            if (coins.length === 0) {
+                gameOver = true;
+            }
+        }
+
+        function drawWinScreen() {
+            ctx.fillStyle = '#FFA500';
+            ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
+            ctx.fillStyle = '#FFF';
+            ctx.font = '40px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('DUDE, NICE JOB!', GAME_SIZE / 2, GAME_SIZE / 2 - 40);
+            ctx.font = '72px Arial';
+            ctx.fillText('😎', GAME_SIZE / 2, GAME_SIZE / 2 + 50);
+            ctx.font = '24px "Courier New", monospace';
+            ctx.fillText(`Final Score: ${score}`, GAME_SIZE / 2, GAME_SIZE / 2 + 120);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, GAME_SIZE, GAME_SIZE);
+            
+            if (!gameOver) {
+                drawGrid();
+                drawWizardMuzz();
+                drawGhosts();
+                drawCoins();
+                update();
+            } else {
+                drawWinScreen();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowRight') wizardMuzz.direction = 0;
+            if (event.key === 'ArrowUp') wizardMuzz.direction = 1;
+            if (event.key === 'ArrowLeft') wizardMuzz.direction = 2;
+            if (event.key === 'ArrowDown') wizardMuzz.direction = 3;
+        });
+
+        initGame();
+        gameLoop();
+    </script>
+</body>
+</html>
