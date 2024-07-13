@@ -1,4 +1,5 @@
 # pacmuzz
 Fun Game 
------
-[Play Here](wizard-muzz-bitcoin-game.html)
+
+# Let's Rock
+[Play Here](https://themuzzman.github.io/pacmuzz/wizard-muzz-bitcoin-game.html)
